@@ -1,0 +1,111 @@
+name: deepsearch-kb
+services:
+  es01:
+    image: elasticsearch:8.11.3
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: 'true'
+      xpack.security.http.ssl.enabled: 'false'
+      xpack.security.transport.ssl.enabled: 'false'
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+      cluster.routing.allocation.disk.watermark.low: 5gb
+      cluster.routing.allocation.disk.watermark.high: 3gb
+      cluster.routing.allocation.disk.watermark.flood_stage: 2gb
+    mem_limit: 1536m
+    tmpfs:
+      - /tmp:mode=1777,size=256m
+    volumes:
+      - ./data/elasticsearch:/usr/share/elasticsearch/data
+    healthcheck:
+      test: [CMD-SHELL, 'curl -fs -u elastic:$$ELASTIC_PASSWORD http://localhost:9200/_cluster/health']
+      interval: 10s
+      timeout: 10s
+      retries: 60
+    restart: unless-stopped
+  mysql:
+    image: mysql:8.0.39
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: rag_flow
+    command: --max_connections=200 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-authentication-plugin=mysql_native_password --max_allowed_packet=1073741824 --innodb-buffer-pool-size=128M
+    mem_limit: 768m
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    healthcheck:
+      test: [CMD-SHELL, 'mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent']
+      interval: 10s
+      timeout: 10s
+      retries: 60
+    restart: unless-stopped
+  minio:
+    image: pgsty/minio:RELEASE.2026-03-25T00-00-00Z
+    command: [server, --console-address, ':9001', /data]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    mem_limit: 512m
+    volumes:
+      - ./data/minio:/data
+    healthcheck:
+      test: [CMD, curl, -f, http://localhost:9000/minio/health/live]
+      interval: 10s
+      timeout: 10s
+      retries: 60
+    restart: unless-stopped
+  redis:
+    image: valkey/valkey:8
+    command: [redis-server, --requirepass, '${REDIS_PASSWORD}', --maxmemory, 128mb, --maxmemory-policy, allkeys-lru, --appendonly, 'yes']
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    mem_limit: 256m
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: [CMD-SHELL, 'redis-cli -a $$REDIS_PASSWORD ping']
+      interval: 10s
+      timeout: 10s
+      retries: 60
+    restart: unless-stopped
+  ragflow:
+    image: ${RAGFLOW_IMAGE:-infiniflow/ragflow:v0.26.0}
+    env_file: .env
+    environment:
+      DOC_ENGINE: elasticsearch
+      DEVICE: cpu
+      MYSQL_HOST: mysql
+      MYSQL_DBNAME: rag_flow
+      MYSQL_PORT: '3306'
+      ES_HOST: es01
+      MINIO_HOST: minio
+      REDIS_HOST: redis
+      API_PROXY_SCHEME: python
+      TZ: Asia/Shanghai
+      REGISTER_ENABLED: '1'
+      DOC_BULK_SIZE: '1'
+      EMBEDDING_BATCH_SIZE: '8'
+      THREAD_POOL_MAX_WORKERS: '8'
+      OMP_NUM_THREADS: '2'
+    command: [--init-model-provider-tables]
+    ports:
+      - 127.0.0.1:8080:80
+      - 127.0.0.1:9380:9380
+    volumes:
+      - ./service_conf.yaml.template:/ragflow/conf/service_conf.yaml.template:ro
+      - ./data/logs:/ragflow/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      es01:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD-SHELL, 'curl -fs http://localhost:9380/api/v1/system/ping']
+      interval: 20s
+      timeout: 10s
+      start_period: 180s
+      retries: 30
+    restart: unless-stopped

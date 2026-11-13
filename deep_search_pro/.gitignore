@@ -1,0 +1,21 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+.pytest_cache/
+deploy/ragflow/.env
+deploy/ragflow/local-account.json
+deploy/ragflow/reference/
+deploy/ragflow/ragflow-logs/
+deploy/ragflow/data/
+output/
+updated/
+tmp/
+.playwright-cli/
+.idea/
+node_modules/
+*.log
+
+# 上层仓库的 *.sql 规则会误伤 RagFlow 官方初始化脚本，此处放行
+!deploy/ragflow/init.sql
