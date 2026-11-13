@@ -1,0 +1,47 @@
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# ---------- 虚拟环境 ----------
+.venv/
+venv/
+env/
+ENV/
+
+# ---------- IDE / 编辑器 ----------
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ---------- 密钥与环境变量 ----------
+.env
+*.env
+.env.*
+!.env.example
+
+# ---------- 模型权重与大型二进制文件 ----------
+# bge-base-zh-v1.5 约 390MB，超过 GitHub 单文件 100MB 限制，请自行下载
+ecs_demo/models/
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+*.tar.gz
+*.zip
+
+# ---------- 数据与日志 ----------
+*.log
+logs/
+*.sql
+*.db
+*.sqlite3
